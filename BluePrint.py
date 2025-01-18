@@ -3,16 +3,53 @@ import os
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from docx import Document
-from docx.shared import Pt
+from docx.shared import Pt,RGBColor
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
-from docx.shared import RGBColor
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
 OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+
+
+def add_custom_heading(doc, text, level=1, font_name="Segoe UI Semilight", font_size=10, font_color=None, bold=False):
+    """
+    Add a custom-styled heading to the document.
+
+    :param doc: The Document object.
+    :param text: The text of the heading.
+    :param level: The heading level (1-9).
+    :param font_name: The name of the font (default: "Segoe UI Semilight").
+    :param font_size: The font size in points (default: 12).
+    :param font_color: An instance of RGBColor for font color (default: None).
+    :param bold: A boolean indicating whether the text should be bold (default: False).
+    :return: None
+    """
+    # Create the heading
+    heading = doc.add_heading(level=level)
+    run = heading.add_run(text)
+    
+    # Apply custom styles
+    run.font.name = font_name
+    run.font.size = Pt(font_size)
+    if font_color:
+        run.font.color.rgb = font_color
+    run.font.bold = bold
+
+    # Ensure font settings are applied properly in Word
+    r = run._element
+    rPr = r.find(qn('w:rPr'))
+    if rPr is None:
+        rPr = OxmlElement('w:rPr')
+        r.insert(0, rPr)
+    rFonts = rPr.find(qn('w:rFonts'))
+    if rFonts is None:
+        rFonts = OxmlElement('w:rFonts')
+        rPr.append(rFonts)
+    rFonts.set(qn('w:ascii'), font_name)
+    rFonts.set(qn('w:hAnsi'), font_name)
 
 def set_font(cell, font_name, font_size, font_color=None, bold=False):
     for paragraph in cell.paragraphs:
@@ -42,13 +79,9 @@ def set_cell_background(cell, color):
     cell_properties.append(cell_shading)
 
 def add_caption_with_seq(doc, text):
-    """
-    Add a caption using Word's SEQ field for Table of Figures compatibility.
-    """
     paragraph = doc.add_paragraph()
-    paragraph.style = 'Caption'  # Ensure compatibility with Word's Table of Figures feature
+    paragraph.style = 'Caption' 
 
-    # Add "Table" label
     run = paragraph.add_run("Table ")
     run.font.name = "Segoe UI Semilight (Body)"
     run.font.size = Pt(10)
@@ -97,8 +130,20 @@ def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
             {"node": "FIELD", "attributes": ["NAME", "CALCULATED", "CALCULATED_VALUE", "COLUMN", "JOIN", "UPDATED", "UPDATED_BY", "COMMENTS"]},
             {"node": "BUSINESS_COMPONENT_USER_PROP", "attributes": ["NAME", "VALUE", "UPDATED", "UPDATED_BY", "COMMENTS"]},
         ]
+            
     else:
         return None
+
+    if context_name:
+            add_custom_heading(
+                doc,
+                text=f"{context_name}",
+                level=4, 
+                font_name="Segoe UI Semilight",
+                font_size=10,
+                font_color=RGBColor(59, 105, 130),
+                bold=False
+            )
 
     table_count = 1
     for node_group in nodes_to_process:
@@ -114,15 +159,14 @@ def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
             comments_field = element.get("COMMENTS")
 
             matches = True
-            if (bc_node != node_name):
-                if in_date and updated_date:
-                    date_only = updated_date.split(" ")[0]
-                    date_object = datetime.strptime(date_only, date_format)
-                    matches = matches and date_object > in_date
-                if user:
-                    matches = matches and (updated_by == user)
-                if comments:
-                    matches = matches and (comments in (comments_field or ""))
+            if in_date and updated_date:
+                date_only = updated_date.split(" ")[0]
+                date_object = datetime.strptime(date_only, date_format)
+                matches = matches and date_object > in_date
+            if user:
+                matches = matches and (updated_by == user)
+            if comments:
+                matches = matches and (comments in (comments_field or ""))
 
             if matches:
                 if not table_created:
