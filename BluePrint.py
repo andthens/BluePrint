@@ -20,9 +20,9 @@ def set_font(cell, font_name, font_size, font_color=None, bold=False):
             run.font.name = font_name
             run.font.size = Pt(font_size)
             if font_color:
-                run.font.color.rgb = font_color 
+                run.font.color.rgb = font_color
             if bold:
-                run.font.bold = True  
+                run.font.bold = True
             r = run._element
             rPr = r.find(qn('w:rPr'))
             if rPr is None:
@@ -38,8 +38,40 @@ def set_font(cell, font_name, font_size, font_color=None, bold=False):
 def set_cell_background(cell, color):
     cell_properties = cell._element.get_or_add_tcPr()
     cell_shading = OxmlElement('w:shd')
-    cell_shading.set(qn('w:fill'), color) 
+    cell_shading.set(qn('w:fill'), color)
     cell_properties.append(cell_shading)
+
+def add_caption_with_seq(doc, text):
+    """
+    Add a caption using Word's SEQ field for Table of Figures compatibility.
+    """
+    paragraph = doc.add_paragraph()
+    paragraph.style = 'Caption'  # Ensure compatibility with Word's Table of Figures feature
+
+    # Add "Table" label
+    run = paragraph.add_run("Table ")
+    run.font.name = "Segoe UI Semilight (Body)"
+    run.font.size = Pt(10)
+    run.font.bold = True
+    run.font.italic = True
+    run.font.color.rgb = RGBColor(59, 105, 130)
+
+    fld_simple = OxmlElement('w:fldSimple')
+    fld_simple.set(qn('w:instr'), 'SEQ Table \\* ARABIC') 
+    fld_run = OxmlElement('w:r')
+    fld_text = OxmlElement('w:t')
+    fld_text.text = "" 
+    fld_run.append(fld_text)
+    fld_simple.append(fld_run)
+    paragraph._element.append(fld_simple)
+
+    run = paragraph.add_run(f": {text}")
+    run.font.name = "Segoe UI Semilight (Body)"
+    run.font.size = Pt(10)
+    run.font.bold = True
+    run.font.italic = True
+    run.font.color.rgb = RGBColor(59, 105, 130)
+
 
 def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
     tree = ET.parse(file_path)
@@ -53,25 +85,22 @@ def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
     context_name = None
     if applet_node is not None:
         context_name = applet_node.get("NAME")
-        doc.add_heading(f"{context_name}: Controls and Columns", level=1)
         nodes_to_process = [
+            {"node": "APPLET", "attributes": ["NAME", "TABLE"]},
             {"node": "CONTROL", "attributes": ["NAME", "CAPTION", "HTML_TYPE", "UPDATED", "UPDATED_BY", "COMMENTS"]},
             {"node": "COLUMN", "attributes": ["NAME", "COLUMN_TYPE", "UPDATED", "UPDATED_BY", "COMMENTS"]},
         ]
     elif bc_node is not None:
         context_name = bc_node.get("NAME")
-        doc.add_heading(f"{context_name}: Fields", level=1)
         nodes_to_process = [
+            {"node": "BUSINESS_COMPONENT", "attributes": ["NAME", "TABLE"]},
             {"node": "FIELD", "attributes": ["NAME", "CALCULATED", "CALCULATED_VALUE", "COLUMN", "JOIN", "UPDATED", "UPDATED_BY", "COMMENTS"]},
-            {"node": "JOIN", "attributes": ["NAME", "OUTER_JOIN_FLAG", "TABLE","UPDATED", "UPDATED_BY", "COMMENTS"]},
-            {"node": "JOIN_SPECIFICATION", "attributes": ["NAME", "DESTINATION_COLUMN","SOURCE_FIELD", "UPDATED", "UPDATED_BY", "COMMENTS"]},
             {"node": "BUSINESS_COMPONENT_USER_PROP", "attributes": ["NAME", "VALUE", "UPDATED", "UPDATED_BY", "COMMENTS"]},
-            {"node": "MULTI_VALUE_LINK", "attributes": ["NAME", "DESTINATION_BUSINESS_COMPONENT","DESTINATION_LINK", "UPDATED", "UPDATED_BY"]},
-            {"node": "BUSCOMP_SERVER_SCRIPT", "attributes": ["NAME", "SCRIPT", "UPDATED", "UPDATED_BY"]},
         ]
     else:
         return None
 
+    table_count = 1
     for node_group in nodes_to_process:
         node_name = node_group["node"]
         attributes = node_group["attributes"]
@@ -80,24 +109,27 @@ def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
         table = None
 
         for element in root.findall(f".//{node_name}"):
-            print(node_name)
             updated_date = element.get("UPDATED")
             updated_by = element.get("UPDATED_BY")
             comments_field = element.get("COMMENTS")
 
             matches = True
-            if in_date and updated_date:
-                date_only = updated_date.split(" ")[0]
-                date_object = datetime.strptime(date_only, date_format)
-                matches = matches and date_object > in_date
-            if user:
-                matches = matches and (updated_by == user)
-            if comments:
-                matches = matches and (comments in (comments_field or ""))
+            if (bc_node != node_name):
+                if in_date and updated_date:
+                    date_only = updated_date.split(" ")[0]
+                    date_object = datetime.strptime(date_only, date_format)
+                    matches = matches and date_object > in_date
+                if user:
+                    matches = matches and (updated_by == user)
+                if comments:
+                    matches = matches and (comments in (comments_field or ""))
 
             if matches:
                 if not table_created:
-                    doc.add_heading(f"{context_name}: {node_name}", level=1)
+                    caption_text = f"{context_name} - {node_name}"
+                    add_caption_with_seq(doc, caption_text)
+                    table_count += 1
+
                     table = doc.add_table(rows=1, cols=len(attributes))
                     table.style = "Table Grid"
 
@@ -151,7 +183,6 @@ def index():
             else:
                 return "No matching data found in the XML file."
     return render_template("index.html")
-
 
 if __name__ == "__main__":
     app.run(debug=True)
