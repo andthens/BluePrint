@@ -6,6 +6,7 @@ from docx import Document
 from docx.shared import Pt,RGBColor
 from docx.oxml import OxmlElement
 from docx.oxml.ns import qn
+from lxml import etree
 
 app = Flask(__name__)
 UPLOAD_FOLDER = "uploads"
@@ -15,30 +16,16 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
 
 def add_custom_heading(doc, text, level=1, font_name="Segoe UI Semilight", font_size=10, font_color=None, bold=False):
-    """
-    Add a custom-styled heading to the document.
 
-    :param doc: The Document object.
-    :param text: The text of the heading.
-    :param level: The heading level (1-9).
-    :param font_name: The name of the font (default: "Segoe UI Semilight").
-    :param font_size: The font size in points (default: 12).
-    :param font_color: An instance of RGBColor for font color (default: None).
-    :param bold: A boolean indicating whether the text should be bold (default: False).
-    :return: None
-    """
-    # Create the heading
     heading = doc.add_heading(level=level)
     run = heading.add_run(text)
     
-    # Apply custom styles
     run.font.name = font_name
     run.font.size = Pt(font_size)
     if font_color:
         run.font.color.rgb = font_color
     run.font.bold = bold
 
-    # Ensure font settings are applied properly in Word
     r = run._element
     rPr = r.find(qn('w:rPr'))
     if rPr is None:
@@ -107,21 +94,25 @@ def add_caption_with_seq(doc, text):
 
 
 def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
-    tree = ET.parse(file_path)
+    tree = etree.parse(file_path)
     root = tree.getroot()
     date_format = "%m/%d/%Y"
 
     doc = Document()
     applet_node = root.find(".//APPLET")
     bc_node = root.find(".//BUSINESS_COMPONENT")
+    inte_node = root.find(".//INTEGRATION_OBJECT")
 
     context_name = None
     if applet_node is not None:
         context_name = applet_node.get("NAME")
         nodes_to_process = [
             {"node": "APPLET", "attributes": ["NAME", "TABLE"]},
-            {"node": "CONTROL", "attributes": ["NAME", "CAPTION", "HTML_TYPE", "UPDATED", "UPDATED_BY", "COMMENTS"]},
-            {"node": "COLUMN", "attributes": ["NAME", "COLUMN_TYPE", "UPDATED", "UPDATED_BY", "COMMENTS"]},
+            {"node": "CONTROL", "attributes": ["NAME", "CAPTION", "HTML_TYPE"]},
+            {"node": "COLUMN", "attributes": ["NAME", "COLUMN_TYPE"]},
+            {"node": "APPLET_BROWSER_SCRIPT", "attributes": ["NAME", "SCRIPT"]},
+            {"node": "APPLET_USER_PROP", "attributes": ["NAME", "VALUE"]},
+            {"node": "DRILLDOWN_OBJECT", "attributes": ["NAME", "BUSINESS_COMPONENT", "DESTINATION_FIELD", "SOURCE_FIELD", "HYPERLINK_FIELD"]},
         ]
     elif bc_node is not None:
         context_name = bc_node.get("NAME")
@@ -130,26 +121,35 @@ def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
             {"node": "FIELD", "attributes": ["NAME", "CALCULATED", "CALCULATED_VALUE", "COLUMN", "JOIN", "UPDATED", "UPDATED_BY", "COMMENTS"]},
             {"node": "BUSINESS_COMPONENT_USER_PROP", "attributes": ["NAME", "VALUE", "UPDATED", "UPDATED_BY", "COMMENTS"]},
         ]
-            
+
+    elif inte_node is not None:
+        context_name = inte_node.get("NAME")
+        nodes_to_process = [
+            {"node": "INTEGRATION_OBJECT", "attributes": ["NAME", "EXTERNAL_NAME", "XML_TAG"]},
+            {"node": "INTEGRATION_COMPONENT", "attributes": ["NAME", "EXTERNAL_NAME", "XML_TAG", "CARDINALITY"]},
+            {"node": "INTEGRATION_COMPONENT_FIELD", "attributes": ["NAME", "FIELD_TYPE", "EXTERNAL_NAME", "XML_TAG"]},
+            {"node": "INTEGRATION_COMPONENT_KEY", "attributes": ["NAME", "KEY_TYPE"]},
+            {"node": "INTEGRATION_COMPONENT_KEY_FIELD", "attributes": ["NAME", "FIELD_NAME"]},
+        ]
     else:
         return None
 
     if context_name:
-            add_custom_heading(
-                doc,
-                text=f"{context_name}",
-                level=4, 
-                font_name="Segoe UI Semilight",
-                font_size=10,
-                font_color=RGBColor(59, 105, 130),
-                bold=False
-            )
+        add_custom_heading(
+            doc,
+            text=f"{context_name}",
+            level=4,
+            font_name="Segoe UI Semilight",
+            font_size=10,
+            font_color=RGBColor(59, 105, 130),
+            bold=False,
+        )
 
-    table_count = 1
     for node_group in nodes_to_process:
         node_name = node_group["node"]
         attributes = node_group["attributes"]
 
+        last_parent = None
         table_created = False
         table = None
 
@@ -168,11 +168,12 @@ def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
             if comments:
                 matches = matches and (comments in (comments_field or ""))
 
+            parent = element.getparent()
+
             if matches:
-                if not table_created:
-                    caption_text = f"{context_name} - {node_name}"
+                if not table_created or parent != last_parent:
+                    caption_text = f"{context_name} - {node_name} (Parent: {parent.get('NAME', 'N/A') if parent is not None else 'N/A'})"
                     add_caption_with_seq(doc, caption_text)
-                    table_count += 1
 
                     table = doc.add_table(rows=1, cols=len(attributes))
                     table.style = "Table Grid"
@@ -182,6 +183,8 @@ def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
                         hdr_cells[i].text = attr
                         set_font(hdr_cells[i], "Segoe UI Semilight", 11, font_color=RGBColor(255, 255, 255), bold=True)
                         set_cell_background(hdr_cells[i], "3b6982")
+
+                    last_parent = parent
                     table_created = True
 
                 row_cells = table.add_row().cells
