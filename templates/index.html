@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Upload File</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(to bottom right, #eef6fd, #dcecfb);
+        }
+
+        .blueprint-label {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            font-size: 1.8rem;
+            font-weight: bold;
+            font-family: 'Arial', sans-serif;
+            color: #333;
+            background: linear-gradient(to right, #0056b3, #007bff);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.2);
+        }
+
+        .container {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            text-align: center;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+
+        .header h1 {
+            font-size: 2rem;
+            color: #0056b3;
+            margin: 0;
+        }
+
+        .header p {
+            color: #6c757d;
+            margin-top: 10px;
+            font-size: 1.2rem;
+        }
+
+        .upload-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            background: white;
+            padding: 30px;
+            border-radius: 15px;
+            box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.1);
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .upload-section img {
+            width: 120px;
+            margin-bottom: 20px;
+        }
+
+        .upload-section input[type="file"] {
+            display: none;
+        }
+
+        .upload-section label {
+            display: inline-block;
+            padding: 10px 25px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin: 10px 0;
+        }
+
+        .upload-section label:hover {
+            background-color: #0056b3;
+        }
+
+        .submit-btn {
+            margin-top: 20px;
+            padding: 10px 25px;
+            font-size: 16px;
+            background-color: #28a745;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .submit-btn:hover {
+            background-color: #218838;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0, 0, 0, 0.5);
+            justify-content: center;
+            align-items: center;
+            z-index: 1000;
+        }
+
+        .modal-content {
+            background: white;
+            padding: 30px;
+            border-radius: 10px;
+            text-align: center;
+            box-shadow: 0px 4px 20px rgba(0, 0, 0, 0.2);
+            max-width: 500px;
+            width: 90%;
+        }
+
+        .modal-content .input-group {
+            margin-bottom: 15px;
+            text-align: left;
+        }
+
+        .modal-content .input-group label {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .modal-content .input-group input {
+            width: 100%;
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            background: #f9f9f9;
+        }
+
+        .close-btn {
+            margin-top: 20px;
+            padding: 10px 25px;
+            font-size: 16px;
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .close-btn:hover {
+            background-color: #0056b3;
+        }
+    </style>
+</head>
+<body>
+    <div class="blueprint-label">
+        Blue<span style="color: #007bff;">Print</span>
+    </div>
+    <div class="container">
+        <div class="header">
+            <h1>Upload File</h1>
+            <p>and Process to get the TDD</p>
+        </div>
+        <div class="upload-section">
+            <img src="https://img.icons8.com/clouds/100/000000/upload.png" alt="Upload Icon">
+            <form id="main-form" method="POST" enctype="multipart/form-data">
+                <label for="file-upload">Choose File</label>
+                <input type="file" id="file-upload" name="file" required>
+                <div class="info">Choose your XML file to process.</div>
+                <button type="button" class="submit-btn" id="process-file">Process</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal -->
+    <div class="modal" id="modal">
+        <div class="modal-content">
+            <form id="popup-form">
+                <div class="input-group">
+                    <label for="in_date">Select Date:</label>
+                    <input type="date" id="in_date" name="in_date">
+                </div>
+                <div class="input-group">
+                    <label for="user">Enter User:</label>
+                    <input type="text" id="user" name="user" placeholder="Enter user name">
+                </div>
+                <div class="input-group">
+                    <label for="comments">Enter Comments:</label>
+                    <input type="text" id="comments" name="comments" placeholder="Enter comments keyword">
+                </div>
+                <button type="submit" class="submit-btn">Submit</button>
+                <button type="button" class="close-btn" id="close-modal">Close</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        const fileUpload = document.getElementById('file-upload');
+        const modal = document.getElementById('modal');
+        const processFile = document.getElementById('process-file');
+        const closeModal = document.getElementById('close-modal');
+        const popupForm = document.getElementById('popup-form');
+        const mainForm = document.getElementById('main-form');
+
+        // Show modal
+        processFile.addEventListener('click', () => {
+            if (fileUpload.files.length > 0) {
+                modal.style.display = 'flex';
+            } else {
+                alert('Please select a file first.');
+            }
+        });
+
+        // Close modal
+        closeModal.addEventListener('click', () => {
+            modal.style.display = 'none';
+        });
+
+        popupForm.addEventListener('submit', (event) => {
+            event.preventDefault();
+
+            const dateInput = document.getElementById('in_date');
+            const userInput = document.getElementById('user');
+            const commentsInput = document.getElementById('comments');
+
+            const hiddenDate = document.createElement('input');
+            hiddenDate.type = 'hidden';
+            hiddenDate.name = 'in_date';
+            hiddenDate.value = dateInput.value;
+
+            const hiddenUser = document.createElement('input');
+            hiddenUser.type = 'hidden';
+            hiddenUser.name = 'user';
+            hiddenUser.value = userInput.value;
+
+            const hiddenComments = document.createElement('input');
+            hiddenComments.type = 'hidden';
+            hiddenComments.name = 'comments';
+            hiddenComments.value = commentsInput.value;
+
+            mainForm.appendChild(hiddenDate);
+            mainForm.appendChild(hiddenUser);
+            mainForm.appendChild(hiddenComments);
+
+            mainForm.submit();
+            modal.style.display = 'none';
+        });
+    </script>
+</body>
+</html>
