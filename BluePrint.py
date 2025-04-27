@@ -14,6 +14,16 @@ OUTPUT_FOLDER = "outputs"
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 
+ATTRIBUTE_NAME_MAPPING = {
+    "NAME": "Name",
+    "EXTERNAL_NAME": "External Name",
+    "XML_TAG": "XML Tag",
+    "CARDINALITY": "Cardinality",
+    "FIELD_TYPE": "Field Type",
+    "KEY_TYPE": "Key Type",
+    "FIELD_NAME": "Field Name"
+}
+
 
 def add_custom_heading(doc, text, level=1, font_name="Segoe UI Semilight", font_size=10, font_color=None, bold=False):
 
@@ -190,8 +200,8 @@ def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
 
                     hdr_cells = table.rows[0].cells
                     for i, attr in enumerate(attributes):
-                        hdr_cells[i].text = attr
-                        set_font(hdr_cells[i], "Segoe UI Semilight", 11, font_color=RGBColor(255, 255, 255), bold=True)
+                        hdr_cells[i].text = ATTRIBUTE_NAME_MAPPING.get(attr, attr)
+                        set_font(hdr_cells[i], "Segoe UI Semilight", 10, font_color=RGBColor(255, 255, 255), bold=True)
                         set_cell_background(hdr_cells[i], "3b6982")
 
                     last_parent = parent
@@ -200,7 +210,7 @@ def process_xml(file_path, output_path, in_date=None, user=None, comments=None):
                 row_cells = table.add_row().cells
                 for i, attr in enumerate(attributes):
                     row_cells[i].text = element.get(attr) if element.get(attr) else "N/A"
-                    set_font(row_cells[i], "Segoe UI Semilight", 11)
+                    set_font(row_cells[i], "Segoe UI Semilight", 10)
 
         if table_created and len(table.rows) == 1:
             doc.tables[-1]._element.getparent().remove(doc.tables[-1]._element)
